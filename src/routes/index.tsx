@@ -15,6 +15,7 @@ import {
   Loader2,
   Bot,
   Hand,
+  Download,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -268,6 +269,15 @@ function LeadEngine() {
 
   const clearLogs = () => setLogs([]);
 
+  const handleDownload = () => {
+    const a = document.createElement("a");
+    a.href = `${API_BASE}/api/emails/download`;
+    a.download = "extracted_emails.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
@@ -515,11 +525,21 @@ function LeadEngine() {
             </Card>
 
             <Card className="flex flex-col">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Extracted Emails</CardTitle>
-                <CardDescription>
-                  {emails.length} unique result{emails.length === 1 ? "" : "s"} this session.
-                </CardDescription>
+              <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+                <div>
+                  <CardTitle className="text-base">Extracted Emails</CardTitle>
+                  <CardDescription>
+                    {emails.length} unique result{emails.length === 1 ? "" : "s"} this session.
+                  </CardDescription>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleDownload}
+                  disabled={emails.length === 0}
+                >
+                  <Download /> Download
+                </Button>
               </CardHeader>
               <Separator />
               <CardContent className="p-0">
