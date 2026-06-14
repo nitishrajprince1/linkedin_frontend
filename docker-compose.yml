@@ -9,3 +9,5 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    security_opt:
+      - seccomp:unconfined
