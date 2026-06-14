@@ -14,4 +14,4 @@ RUN bun run build
 
 EXPOSE 3000
 
-CMD ["bunx", "wrangler", "dev", "--config", "dist/server/wrangler.json", "--port", "3000"]
+CMD ["bunx", "wrangler", "dev", "--config", "dist/server/wrangler.json", "--port", "3000", "--ip", "0.0.0.0"]
