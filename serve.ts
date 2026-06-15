@@ -1,11 +1,7 @@
-import { readdirSync, readFileSync } from "fs";
+import { readFileSync } from "fs";
 import { join, extname } from "path";
 
 const ASSETS_DIR = join(import.meta.dir, "dist", "client", "assets");
-
-const assetFiles = readdirSync(ASSETS_DIR);
-const jsFiles = assetFiles.filter((f) => f.endsWith(".js"));
-const cssFiles = assetFiles.filter((f) => f.endsWith(".css"));
 
 const MIME: Record<string, string> = {
   ".js": "application/javascript",
@@ -20,26 +16,36 @@ const MIME: Record<string, string> = {
   ".ttf": "font/ttf",
 };
 
-const HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LinkedIn Scraper</title>
-${cssFiles.map((f) => `  <link rel="stylesheet" href="/assets/${f}" />`).join("\n")}
-</head>
-<body>
-  <div id="root"></div>
-${jsFiles.map((f) => `  <script type="module" src="/assets/${f}"></script>`).join("\n")}
-</body>
-</html>`;
+// Polyfill Cloudflare-specific globals that may be referenced in the worker bundle
+if (!globalThis.caches) {
+  (globalThis as any).caches = {
+    open: async () => ({
+      match: async () => undefined,
+      put: async () => {},
+      delete: async () => false,
+    }),
+    default: {
+      match: async () => undefined,
+      put: async () => {},
+      delete: async () => false,
+    },
+  };
+}
+
+const { default: worker } = await import("./dist/server/index.js");
+
+const ctx = {
+  waitUntil: (_p: Promise<unknown>) => {},
+  passThroughOnException: () => {},
+};
 
 Bun.serve({
   port: 3000,
   hostname: "0.0.0.0",
-  fetch(req) {
+  async fetch(req) {
     const { pathname } = new URL(req.url);
 
+    // Serve static client assets directly (faster + avoids going through the worker)
     if (pathname.startsWith("/assets/")) {
       const filename = pathname.slice(8);
       try {
@@ -56,9 +62,8 @@ Bun.serve({
       }
     }
 
-    return new Response(HTML, {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
+    // All other requests go through the Cloudflare Worker for SSR
+    return await worker.fetch(req, {}, ctx);
   },
 });
 
