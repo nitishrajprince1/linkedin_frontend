@@ -185,7 +185,7 @@ function LeadEngine() {
       } catch (e) {
         // Silent fail on polling
       }
-    }, 2000);
+    }, 15000);
 
     return () => clearInterval(interval);
   }, [running]);
