@@ -302,6 +302,21 @@ function LeadEngine() {
     document.body.removeChild(a);
   };
 
+  const handleClearEmails = async () => {
+    if (!window.confirm(`Delete all ${emails.length} emails from the database? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/emails`, { method: "DELETE" });
+      if (res.ok) {
+        setEmails([]);
+        addLog("All emails cleared from database.", "warn");
+      } else {
+        addLog("Failed to clear emails.", "error");
+      }
+    } catch (e) {
+      addLog("Error clearing emails.", "error");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
@@ -589,14 +604,24 @@ function LeadEngine() {
                     {emails.length} unique result{emails.length === 1 ? "" : "s"} this session.
                   </CardDescription>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleDownload}
-                  disabled={emails.length === 0}
-                >
-                  <Download /> Download
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownload}
+                    disabled={emails.length === 0}
+                  >
+                    <Download /> Download
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleClearEmails}
+                    disabled={emails.length === 0}
+                  >
+                    <Trash2 /> Clear
+                  </Button>
+                </div>
               </CardHeader>
               <Separator />
               <CardContent className="p-0">
