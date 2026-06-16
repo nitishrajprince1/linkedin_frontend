@@ -16,6 +16,7 @@ import {
   Bot,
   Hand,
   Download,
+  Monitor,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -88,6 +89,8 @@ function LeadEngine() {
   const [paused, setPaused] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [emails, setEmails] = useState<EmailRow[]>([]);
+  const [screenshot, setScreenshot] = useState<string | null>(null);
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const logIdRef = useRef(0);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -189,6 +192,27 @@ function LeadEngine() {
 
     return () => clearInterval(interval);
   }, [running]);
+
+  useEffect(() => {
+    if (!browserActive) {
+      setScreenshot(null);
+      setScreenshotUrl(null);
+      return;
+    }
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/screenshot`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.screenshot) setScreenshot(data.screenshot);
+          if (data.url) setScreenshotUrl(data.url);
+        }
+      } catch {}
+    };
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => clearInterval(interval);
+  }, [browserActive]);
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -483,6 +507,39 @@ function LeadEngine() {
               </p>
             </CardContent>
           </Card>
+
+          {/* Live Browser View */}
+          {browserActive && (
+            <Card>
+              <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Monitor className="h-4 w-4" /> Live Browser View
+                  </CardTitle>
+                  <CardDescription className="max-w-lg truncate text-xs">
+                    {screenshotUrl ?? "No page loaded"}
+                  </CardDescription>
+                </div>
+                <Badge variant={screenshot ? "default" : "secondary"} className="text-xs">
+                  {screenshot ? "Live" : "No signal"}
+                </Badge>
+              </CardHeader>
+              <Separator />
+              <CardContent className="p-2">
+                {screenshot ? (
+                  <img
+                    src={`data:image/png;base64,${screenshot}`}
+                    alt="Live browser view"
+                    className="w-full rounded border border-border/40"
+                  />
+                ) : (
+                  <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+                    Waiting for browser...
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Logs + Results */}
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
