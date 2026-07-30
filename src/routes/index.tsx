@@ -17,6 +17,10 @@ import {
   Hand,
   Download,
   Monitor,
+  Sun,
+  Moon,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -87,10 +91,35 @@ function LeadEngine() {
   const [running, setRunning] = useState(false);
   const [autoMode, setAutoMode] = useState(true);
   const [paused, setPaused] = useState(false);
+  const [workflowCollapsed, setWorkflowCollapsed] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [emails, setEmails] = useState<EmailRow[]>([]);
+  const [copied, setCopied] = useState(false);
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("theme");
+      if (saved === "light" || saved === "dark") return saved;
+      return document.documentElement.classList.contains("dark") ? "dark" : "light";
+    }
+    return "dark";
+  });
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [theme]);
+
   const logIdRef = useRef(0);
   const logEndRef = useRef<HTMLDivElement>(null);
 
@@ -215,7 +244,10 @@ function LeadEngine() {
   }, [browserActive]);
 
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (logEndRef.current && logEndRef.current.parentElement) {
+      const container = logEndRef.current.parentElement;
+      container.scrollTop = container.scrollHeight;
+    }
   }, [logs]);
 
   const parseKeywords = () =>
@@ -302,6 +334,19 @@ function LeadEngine() {
     document.body.removeChild(a);
   };
 
+  const handleCopyEmails = async () => {
+    if (!emails.length) return;
+    const text = emails.map((e) => e.email).join(",\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      addLog(`Copied ${emails.length} email(s) to clipboard (comma + newline format).`, "success");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      addLog("Failed to copy emails to clipboard.", "error");
+    }
+  };
+
   const handleClearEmails = async () => {
     if (!window.confirm(`Delete all ${emails.length} emails from the database? This cannot be undone.`)) return;
     try {
@@ -321,7 +366,7 @@ function LeadEngine() {
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="border-b border-border/60 bg-card/40 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+        <div className="w-full flex flex-wrap items-center justify-between gap-4 px-6 md:px-8 py-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
               <CircleDot className="h-5 w-5" />
@@ -331,52 +376,60 @@ function LeadEngine() {
               <p className="text-xs text-muted-foreground">Hybrid manual + automated scraper</p>
             </div>
           </div>
-          <div className="flex items-center gap-6">
+
+          {/* Browser Control Buttons in Top Bar Middle */}
+          <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 p-1">
+            <Button
+              size="sm"
+              onClick={handleStartBrowser}
+              disabled={browserActive}
+              className="h-8 gap-1.5 text-xs font-medium"
+            >
+              <Play className="h-3.5 w-3.5" /> Initialize Browser
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleAuth}
+              disabled={!browserActive || authActive}
+              variant="secondary"
+              className="h-8 gap-1.5 text-xs font-medium"
+            >
+              <LogIn className="h-3.5 w-3.5" /> Handle Auth
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleClose}
+              disabled={!browserActive}
+              variant="destructive"
+              className="h-8 gap-1.5 text-xs font-medium"
+            >
+              <Power className="h-3.5 w-3.5" /> Close Chrome
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-4">
             <StatusDot active={browserActive} label="Browser" />
             <StatusDot active={authActive} label="Auth" />
+            <Separator orientation="vertical" className="h-5" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              className="h-9 w-9 rounded-lg border border-border/60 bg-background/50 hover:bg-accent transition-all active:scale-95"
+            >
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4 text-amber-400 transition-all" />
+              ) : (
+                <Moon className="h-4 w-4 text-slate-700 transition-all" />
+              )}
+              <span className="sr-only">Toggle theme</span>
+            </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-6 py-6 lg:grid-cols-[280px_1fr]">
-        {/* Sidebar */}
-        <aside className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Browser Control</CardTitle>
-              <CardDescription className="text-xs">
-                Manage the local Selenium session.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button
-                onClick={handleStartBrowser}
-                disabled={browserActive}
-                className="w-full justify-start"
-              >
-                <Play /> Initialize Browser
-              </Button>
-              <Button
-                onClick={handleAuth}
-                disabled={!browserActive || authActive}
-                variant="secondary"
-                className="w-full justify-start"
-              >
-                <LogIn /> Handle Auth
-              </Button>
-              <Button
-                onClick={handleClose}
-                disabled={!browserActive}
-                variant="destructive"
-                className="w-full justify-start"
-              >
-                <Power /> Close Chrome
-              </Button>
-            </CardContent>
-          </Card>
-        </aside>
-
-        {/* Main column */}
+      <main className="w-full flex flex-col gap-6 px-6 md:px-8 py-6">
         <section className="space-y-6">
           {/* Search */}
           <Card>
@@ -435,22 +488,22 @@ function LeadEngine() {
 
           {/* Mode + step controls */}
           <Card>
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-4">
+            <CardHeader className="px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-base">Workflow Steps</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="text-sm">Workflow Steps</CardTitle>
+                  <CardDescription className="text-xs">
                     {autoMode
                       ? "Auto mode — steps run on a loop. Pause anytime or trigger a step manually."
                       : "Manual mode — nothing runs automatically. Click each step yourself."}
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-1.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1">
                     {autoMode ? (
-                      <Bot className="h-4 w-4 text-primary" />
+                      <Bot className="h-3.5 w-3.5 text-primary" />
                     ) : (
-                      <Hand className="h-4 w-4 text-muted-foreground" />
+                      <Hand className="h-3.5 w-3.5 text-muted-foreground" />
                     )}
                     <Label htmlFor="mode" className="text-xs cursor-pointer">
                       {autoMode ? "Auto" : "Manual"}
@@ -478,124 +531,159 @@ function LeadEngine() {
                         callBackend(next ? "/pause" : "/resume");
                       }}
                       disabled={!browserActive}
+                      className="h-8"
                     >
                       {paused ? <Play /> : <Pause />}
                       {paused ? "Resume" : "Pause"}
                     </Button>
                   )}
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={() => setWorkflowCollapsed((v) => !v)}
+                    aria-label={workflowCollapsed ? "Expand workflow steps" : "Collapse workflow steps"}
+                    title={workflowCollapsed ? "Expand workflow steps" : "Collapse workflow steps"}
+                  >
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${workflowCollapsed ? "" : "rotate-180"}`}
+                    />
+                  </Button>
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Button
-                  variant="outline"
-                  onClick={() => handleManual("scroll", "Scroll Down")}
-                  disabled={!browserActive}
-                >
-                  <ChevronDown /> Scroll Down
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleManual("show_more", "Click Show More")}
-                  disabled={!browserActive}
-                >
-                  <MousePointerClick /> Show More
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleManual("expand_posts", "Expand 'See More' on Posts")}
-                  disabled={!browserActive}
-                >
-                  <Maximize2 /> Expand Posts
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleManual("extract", "Extract Emails")}
-                  disabled={!browserActive}
-                >
-                  <Mail /> Extract Emails
-                </Button>
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Manual triggers always work — even while auto mode is running or paused.
-              </p>
-            </CardContent>
+            {!workflowCollapsed && (
+              <CardContent className="px-4 pb-4 pt-0">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 justify-start gap-1.5 text-xs"
+                    onClick={() => handleManual("scroll", "Scroll Down")}
+                    disabled={!browserActive}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" /> Scroll
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 justify-start gap-1.5 text-xs"
+                    onClick={() => handleManual("show_more", "Click Show More")}
+                    disabled={!browserActive}
+                  >
+                    <MousePointerClick className="h-3.5 w-3.5" /> Show More
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 justify-start gap-1.5 text-xs"
+                    onClick={() => handleManual("expand_posts", "Expand 'See More' on Posts")}
+                    disabled={!browserActive}
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" /> Expand
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 justify-start gap-1.5 text-xs"
+                    onClick={() => handleManual("extract", "Extract Emails")}
+                    disabled={!browserActive}
+                  >
+                    <Mail className="h-3.5 w-3.5" /> Extract
+                  </Button>
+                </div>
+              </CardContent>
+            )}
           </Card>
 
-          {/* Live Browser View */}
-          {browserActive && (
-            <Card>
-              <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Monitor className="h-4 w-4" /> Live Browser View
-                  </CardTitle>
-                  <CardDescription className="max-w-lg truncate text-xs">
-                    {screenshotUrl ?? "No page loaded"}
-                  </CardDescription>
-                </div>
-                <Badge variant={screenshot ? "default" : "secondary"} className="text-xs">
-                  {screenshot ? "Live" : "No signal"}
-                </Badge>
-              </CardHeader>
-              <Separator />
-              <CardContent className="p-2">
-                {screenshot ? (
-                  <img
-                    src={`data:image/png;base64,${screenshot}`}
-                    alt="Live browser view"
-                    className="w-full rounded border border-border/40"
-                  />
-                ) : (
-                  <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-                    Waiting for browser...
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Logs + Results */}
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <Card className="flex flex-col">
-              <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-                <div>
+          {/* Live Monitor */}
+          <div
+            className={
+              browserActive
+                ? "grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]"
+                : "max-w-xl"
+            }
+          >
+            <Card className="min-w-0 overflow-hidden">
+              <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 px-4 py-3">
+                <div className="min-w-0">
                   <CardTitle className="text-base">Live Console</CardTitle>
-                  <CardDescription>Streaming output from the backend.</CardDescription>
+                  <CardDescription className="text-xs">Backend output.</CardDescription>
                 </div>
-                <Button size="sm" variant="ghost" onClick={clearLogs}>
+                <Button size="sm" variant="ghost" className="shrink-0" onClick={clearLogs}>
                   <Trash2 /> Clear
                 </Button>
               </CardHeader>
               <Separator />
               <CardContent className="p-0">
-                <ScrollArea className="h-72">
-                  <div className="space-y-1 p-4 font-mono text-xs">
-                    {logs.map((l) => (
-                      <div key={l.id} className="flex gap-2">
-                        <span className="text-muted-foreground shrink-0">{l.ts}</span>
-                        <span
-                          className={
-                            l.level === "success"
-                              ? "text-primary"
-                              : l.level === "error"
-                                ? "text-destructive"
-                                : l.level === "warn"
-                                  ? "text-yellow-500"
-                                  : "text-foreground/80"
-                          }
-                        >
-                          {l.message}
-                        </span>
+                <ScrollArea className="h-48">
+                  <div className="min-w-0 space-y-1 p-3 font-mono text-[11px] leading-5">
+                    {logs.length === 0 ? (
+                      <div className="flex h-32 items-center justify-center text-xs text-muted-foreground">
+                        Waiting for backend output...
                       </div>
-                    ))}
+                    ) : (
+                      logs.map((l) => (
+                        <div key={l.id} className="grid min-w-0 grid-cols-[54px_minmax(0,1fr)] gap-2">
+                          <span className="shrink-0 text-muted-foreground">{l.ts}</span>
+                          <span
+                            className={
+                              l.level === "success"
+                                ? "min-w-0 break-words text-primary"
+                                : l.level === "error"
+                                  ? "min-w-0 break-words text-destructive"
+                                  : l.level === "warn"
+                                    ? "min-w-0 break-words text-yellow-500"
+                                    : "min-w-0 break-words text-foreground/80"
+                            }
+                          >
+                            {l.message}
+                          </span>
+                        </div>
+                      ))
+                    )}
                     <div ref={logEndRef} />
                   </div>
                 </ScrollArea>
               </CardContent>
             </Card>
 
+            {browserActive && (
+              <Card>
+                <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+                  <div className="min-w-0">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Monitor className="h-4 w-4" /> Live Browser View
+                    </CardTitle>
+                    <CardDescription className="max-w-lg truncate text-xs">
+                      {screenshotUrl ?? "No page loaded"}
+                    </CardDescription>
+                  </div>
+                  <Badge variant={screenshot ? "default" : "secondary"} className="shrink-0 text-xs">
+                    {screenshot ? "Live" : "No signal"}
+                  </Badge>
+                </CardHeader>
+                <Separator />
+                <CardContent className="p-2">
+                  {screenshot ? (
+                    <img
+                      src={`data:image/png;base64,${screenshot}`}
+                      alt="Live browser view"
+                      className="max-h-80 w-full rounded border border-border/40 bg-muted object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+                      Waiting for browser...
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Results */}
+          <div className="space-y-6">
             <Card className="flex flex-col">
               <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
                 <div>
@@ -605,6 +693,15 @@ function LeadEngine() {
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCopyEmails}
+                    disabled={emails.length === 0}
+                  >
+                    {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                    {copied ? "Copied!" : "Copy"}
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
