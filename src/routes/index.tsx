@@ -92,6 +92,7 @@ function LeadEngine() {
   const [autoMode, setAutoMode] = useState(true);
   const [paused, setPaused] = useState(false);
   const [workflowCollapsed, setWorkflowCollapsed] = useState(false);
+  const [consoleWidth, setConsoleWidth] = useState(360);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [emails, setEmails] = useState<EmailRow[]>([]);
   const [copied, setCopied] = useState(false);
@@ -122,6 +123,7 @@ function LeadEngine() {
 
   const logIdRef = useRef(0);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const liveMonitorRef = useRef<HTMLDivElement>(null);
 
   const addLog = (message: string, level: LogLevel = "info") => {
     setLogs((prev) => [
@@ -362,6 +364,113 @@ function LeadEngine() {
     }
   };
 
+  const startConsoleResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const container = liveMonitorRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const minWidth = 260;
+    const maxWidth = Math.max(minWidth, Math.min(720, rect.width - 420));
+
+    const move = (moveEvent: PointerEvent) => {
+      const nextWidth = moveEvent.clientX - rect.left;
+      setConsoleWidth(Math.min(maxWidth, Math.max(minWidth, nextWidth)));
+    };
+
+    const stop = () => {
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  };
+
+  const liveConsoleCard = (
+    <Card className="h-full min-w-0 overflow-hidden">
+      <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 px-4 py-3">
+        <div className="min-w-0">
+          <CardTitle className="text-base">Live Console</CardTitle>
+          <CardDescription className="text-xs">Backend output.</CardDescription>
+        </div>
+        <Button size="sm" variant="ghost" className="shrink-0" onClick={clearLogs}>
+          <Trash2 /> Clear
+        </Button>
+      </CardHeader>
+      <Separator />
+      <CardContent className="p-0">
+        <ScrollArea className="h-48">
+          <div className="min-w-0 space-y-1 p-3 font-mono text-[11px] leading-5">
+            {logs.length === 0 ? (
+              <div className="flex h-32 items-center justify-center text-xs text-muted-foreground">
+                Waiting for backend output...
+              </div>
+            ) : (
+              logs.map((l) => (
+                <div key={l.id} className="grid min-w-0 grid-cols-[54px_minmax(0,1fr)] gap-2">
+                  <span className="shrink-0 text-muted-foreground">{l.ts}</span>
+                  <span
+                    className={
+                      l.level === "success"
+                        ? "min-w-0 break-words text-primary"
+                        : l.level === "error"
+                          ? "min-w-0 break-words text-destructive"
+                          : l.level === "warn"
+                            ? "min-w-0 break-words text-yellow-500"
+                            : "min-w-0 break-words text-foreground/80"
+                    }
+                  >
+                    {l.message}
+                  </span>
+                </div>
+              ))
+            )}
+            <div ref={logEndRef} />
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
+
+  const liveBrowserCard = (
+    <Card className="h-full min-w-0">
+      <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+        <div className="min-w-0">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Monitor className="h-4 w-4" /> Live Browser View
+          </CardTitle>
+          <CardDescription className="max-w-lg truncate text-xs">
+            {screenshotUrl ?? "No page loaded"}
+          </CardDescription>
+        </div>
+        <Badge variant={screenshot ? "default" : "secondary"} className="shrink-0 text-xs">
+          {screenshot ? "Live" : "No signal"}
+        </Badge>
+      </CardHeader>
+      <Separator />
+      <CardContent className="p-2">
+        {screenshot ? (
+          <img
+            src={`data:image/png;base64,${screenshot}`}
+            alt="Live browser view"
+            className="max-h-80 w-full rounded border border-border/40 bg-muted object-contain"
+          />
+        ) : (
+          <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+            Waiting for browser...
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
@@ -598,89 +707,33 @@ function LeadEngine() {
           </Card>
 
           {/* Live Monitor */}
-          <div
-            className={
-              browserActive
-                ? "grid grid-cols-1 gap-6 xl:grid-cols-[360px_minmax(0,1fr)]"
-                : "max-w-xl"
-            }
-          >
-            <Card className="min-w-0 overflow-hidden">
-              <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 px-4 py-3">
-                <div className="min-w-0">
-                  <CardTitle className="text-base">Live Console</CardTitle>
-                  <CardDescription className="text-xs">Backend output.</CardDescription>
+          {browserActive ? (
+            <div className="min-h-[260px]">
+              <div ref={liveMonitorRef} className="hidden min-h-[260px] min-w-0 items-stretch md:flex">
+                <div className="min-w-0 shrink-0" style={{ width: consoleWidth }}>
+                  {liveConsoleCard}
                 </div>
-                <Button size="sm" variant="ghost" className="shrink-0" onClick={clearLogs}>
-                  <Trash2 /> Clear
-                </Button>
-              </CardHeader>
-              <Separator />
-              <CardContent className="p-0">
-                <ScrollArea className="h-48">
-                  <div className="min-w-0 space-y-1 p-3 font-mono text-[11px] leading-5">
-                    {logs.length === 0 ? (
-                      <div className="flex h-32 items-center justify-center text-xs text-muted-foreground">
-                        Waiting for backend output...
-                      </div>
-                    ) : (
-                      logs.map((l) => (
-                        <div key={l.id} className="grid min-w-0 grid-cols-[54px_minmax(0,1fr)] gap-2">
-                          <span className="shrink-0 text-muted-foreground">{l.ts}</span>
-                          <span
-                            className={
-                              l.level === "success"
-                                ? "min-w-0 break-words text-primary"
-                                : l.level === "error"
-                                  ? "min-w-0 break-words text-destructive"
-                                  : l.level === "warn"
-                                    ? "min-w-0 break-words text-yellow-500"
-                                    : "min-w-0 break-words text-foreground/80"
-                            }
-                          >
-                            {l.message}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                    <div ref={logEndRef} />
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize live console"
+                  title="Drag to resize live console"
+                  onPointerDown={startConsoleResize}
+                  className="group mx-3 flex w-3 shrink-0 cursor-col-resize items-center justify-center rounded bg-border/40 transition-colors hover:bg-primary/25 active:bg-primary/35"
+                >
+                  <div className="h-10 w-1 rounded-full bg-border group-hover:bg-primary/70" />
+                </div>
+                <div className="min-w-0 flex-1">{liveBrowserCard}</div>
+              </div>
 
-            {browserActive && (
-              <Card>
-                <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
-                  <div className="min-w-0">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Monitor className="h-4 w-4" /> Live Browser View
-                    </CardTitle>
-                    <CardDescription className="max-w-lg truncate text-xs">
-                      {screenshotUrl ?? "No page loaded"}
-                    </CardDescription>
-                  </div>
-                  <Badge variant={screenshot ? "default" : "secondary"} className="shrink-0 text-xs">
-                    {screenshot ? "Live" : "No signal"}
-                  </Badge>
-                </CardHeader>
-                <Separator />
-                <CardContent className="p-2">
-                  {screenshot ? (
-                    <img
-                      src={`data:image/png;base64,${screenshot}`}
-                      alt="Live browser view"
-                      className="max-h-80 w-full rounded border border-border/40 bg-muted object-contain"
-                    />
-                  ) : (
-                    <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
-                      Waiting for browser...
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </div>
+              <div className="grid grid-cols-1 gap-6 md:hidden">
+                {liveConsoleCard}
+                {liveBrowserCard}
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-xl">{liveConsoleCard}</div>
+          )}
 
           {/* Results */}
           <div className="space-y-6">
